@@ -1,0 +1,404 @@
+Get-ScriptDirectory
+$formOutlookCategoryExpor_Load={
+	#TODO: Initialize Form Controls here
+	Set-ControlTheme $formOutlookCategoryExpor -Theme Dark
+}
+
+$darkToolStripMenuItem_Click={
+	#TODO: Place custom script here
+	Set-ControlTheme -Control $formOutlookCategoryExpor -Theme Dark
+}
+
+$lightToolStripMenuItem_Click={
+	Set-ControlTheme -Control $formOutlookCategoryExpor -Theme Light
+}
+
+#region Control Theme Helper Function
+<#
+	.SYNOPSIS
+		Applies a theme to the control and its children.
+	
+	.PARAMETER Control
+		The control to theme. Usually the form itself.
+	
+	.PARAMETER Theme
+		The color theme:
+		Light
+		Dark
+
+	.PARAMETER CustomColor
+		A hashtable that contains the color values.
+		Keys:
+		WindowColor
+		ContainerColor
+		BackColor
+		ForeColor
+		BorderColor
+		SelectionForeColor
+		SelectionBackColor
+		MenuSelectionColor
+	.EXAMPLE
+		PS C:\> Set-ControlTheme -Control $form1 -Theme Dark
+	
+	.EXAMPLE
+		PS C:\> Set-ControlTheme -Control $form1 -CustomColor @{ WindowColor = 'White'; ContainerBackColor = 'Gray'; BackColor... }
+	.NOTES
+		Created by SAPIEN Technologies, Inc.
+#>
+function Set-ControlTheme
+{
+	[CmdletBinding()]
+	param
+	(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.ComponentModel.Component]$Control,
+		[ValidateSet('Light', 'Dark')]
+		[string]$Theme = 'Dark',
+		[System.Collections.Hashtable]$CustomColor
+	)
+	
+	$Font = [System.Drawing.Font]::New('Segoe UI', 9)
+	
+	#Initialize the colors
+	if ($Theme -eq 'Dark')
+	{
+		$WindowColor = [System.Drawing.Color]::FromArgb(32, 32, 32)
+		$ContainerColor = [System.Drawing.Color]::FromArgb(45, 45, 45)
+		$BackColor = [System.Drawing.Color]::FromArgb(32, 32, 32)
+		$ForeColor = [System.Drawing.Color]::White
+		$BorderColor = [System.Drawing.Color]::DimGray
+		$SelectionBackColor = [System.Drawing.SystemColors]::Highlight
+		$SelectionForeColor = [System.Drawing.Color]::White
+		$MenuSelectionColor = [System.Drawing.Color]::DimGray
+	}
+	else
+	{
+		$WindowColor = [System.Drawing.Color]::White
+		$ContainerColor = [System.Drawing.Color]::WhiteSmoke
+		$BackColor = [System.Drawing.Color]::Gainsboro
+		$ForeColor = [System.Drawing.Color]::Black
+		$BorderColor = [System.Drawing.Color]::DimGray
+		$SelectionBackColor = [System.Drawing.SystemColors]::Highlight
+		$SelectionForeColor = [System.Drawing.Color]::White
+		$MenuSelectionColor = [System.Drawing.Color]::LightSteelBlue
+	}
+	
+	if ($CustomColor)
+	{
+		#Check and Validate the custom colors:
+		$Color = $CustomColor.WindowColor -as [System.Drawing.Color]
+		if ($Color) { $WindowColor = $Color }
+		$Color = $CustomColor.ContainerColor -as [System.Drawing.Color]
+		if ($Color) { $ContainerColor = $Color }
+		$Color = $CustomColor.BackColor -as [System.Drawing.Color]
+		if ($Color) { $BackColor = $Color }
+		$Color = $CustomColor.ForeColor -as [System.Drawing.Color]
+		if ($Color) { $ForeColor = $Color }
+		$Color = $CustomColor.BorderColor -as [System.Drawing.Color]
+		if ($Color) { $BorderColor = $Color }
+		$Color = $CustomColor.SelectionBackColor -as [System.Drawing.Color]
+		if ($Color) { $SelectionBackColor = $Color }
+		$Color = $CustomColor.SelectionForeColor -as [System.Drawing.Color]
+		if ($Color) { $SelectionForeColor = $Color }
+		$Color = $CustomColor.MenuSelectionColor -as [System.Drawing.Color]
+		if ($Color) { $MenuSelectionColor = $Color }
+	}
+	
+	#Define the custom renderer for the menus
+	#region Add-Type definition
+	try
+	{
+		[SAPIENTypes.SAPIENColorTable] | Out-Null
+	}
+	catch
+	{
+		if ($PSVersionTable.PSVersion.Major -ge 7)
+		{
+			$Assemblies = 'System.Windows.Forms', 'System.Drawing', 'System.Drawing.Primitives'
+		}
+		else
+		{
+			$Assemblies = 'System.Windows.Forms', 'System.Drawing'
+		}
+		Add-Type -ReferencedAssemblies $Assemblies -TypeDefinition "
+using System;
+using System.Windows.Forms;
+using System.Drawing;
+namespace SAPIENTypes
+{
+    public class SAPIENColorTable : ProfessionalColorTable
+    {
+        Color ContainerBackColor;
+        Color BackColor;
+        Color BorderColor;
+		Color SelectBackColor;
+
+        public SAPIENColorTable(Color containerColor, Color backColor, Color borderColor, Color selectBackColor)
+        {
+            ContainerBackColor = containerColor;
+            BackColor = backColor;
+            BorderColor = borderColor;
+			SelectBackColor = selectBackColor;
+        } 
+		public override Color MenuStripGradientBegin { get { return ContainerBackColor; } }
+        public override Color MenuStripGradientEnd { get { return ContainerBackColor; } }
+        public override Color ToolStripBorder { get { return BorderColor; } }
+        public override Color MenuItemBorder { get { return SelectBackColor; } }
+        public override Color MenuItemSelected { get { return SelectBackColor; } }
+        public override Color SeparatorDark { get { return BorderColor; } }
+        public override Color ToolStripDropDownBackground { get { return BackColor; } }
+        public override Color MenuBorder { get { return BorderColor; } }
+        public override Color MenuItemSelectedGradientBegin { get { return SelectBackColor; } }
+        public override Color MenuItemSelectedGradientEnd { get { return SelectBackColor; } }      
+        public override Color MenuItemPressedGradientBegin { get { return ContainerBackColor; } }
+        public override Color MenuItemPressedGradientEnd { get { return ContainerBackColor; } }
+        public override Color MenuItemPressedGradientMiddle { get { return ContainerBackColor; } }
+        public override Color ImageMarginGradientBegin { get { return BackColor; } }
+        public override Color ImageMarginGradientEnd { get { return BackColor; } }
+        public override Color ImageMarginGradientMiddle { get { return BackColor; } }
+    }
+}"
+	}
+	#endregion
+	
+	$colorTable = New-Object SAPIENTypes.SAPIENColorTable -ArgumentList $ContainerColor, $BackColor, $BorderColor, $MenuSelectionColor
+	$render = New-Object System.Windows.Forms.ToolStripProfessionalRenderer -ArgumentList $colorTable
+	[System.Windows.Forms.ToolStripManager]::Renderer = $render
+	
+	#Set up our processing queue
+	$Queue = New-Object System.Collections.Generic.Queue[System.ComponentModel.Component]
+	$Queue.Enqueue($Control)
+	
+	Add-Type -AssemblyName System.Core
+	
+	#Only process the controls once.
+	$Processed = New-Object System.Collections.Generic.HashSet[System.ComponentModel.Component]
+	
+	#Apply the colors to the controls
+	while ($Queue.Count -gt 0)
+	{
+		$target = $Queue.Dequeue()
+		
+		#Skip controls we already processed
+		if ($Processed.Contains($target)) { continue }
+		$Processed.Add($target)
+		
+		#Set the text color
+		$target.ForeColor = $ForeColor
+		
+		#region Handle Controls
+		if ($target -is [System.Windows.Forms.Form])
+		{
+			#Set Font
+			$target.Font = $Font
+			$target.BackColor = $ContainerColor
+		}
+		elseif ($target -is [System.Windows.Forms.SplitContainer])
+		{
+			$target.BackColor = $BorderColor
+		}
+		elseif ($target -is [System.Windows.Forms.PropertyGrid])
+		{
+			$target.BackColor = $BorderColor
+			$target.ViewBackColor = $BackColor
+			$target.ViewForeColor = $ForeColor
+			$target.ViewBorderColor = $BorderColor
+			$target.CategoryForeColor = $ForeColor
+			$target.CategorySplitterColor = $ContainerColor
+			$target.HelpBackColor = $BackColor
+			$target.HelpForeColor = $ForeColor
+			$target.HelpBorderColor = $BorderColor
+			$target.CommandsBackColor = $BackColor
+			$target.CommandsBorderColor = $BorderColor
+			$target.CommandsForeColor = $ForeColor
+			$target.LineColor = $ContainerColor
+		}
+		elseif ($target -is [System.Windows.Forms.ContainerControl] -or
+			$target -is [System.Windows.Forms.Panel])
+		{
+			#Set the BackColor for the container
+			$target.BackColor = $ContainerColor
+			
+		}
+		elseif ($target -is [System.Windows.Forms.GroupBox])
+		{
+			$target.FlatStyle = 'Flat'
+		}
+		elseif ($target -is [System.Windows.Forms.Button])
+		{
+			$target.FlatStyle = 'Flat'
+			$target.FlatAppearance.BorderColor = $BorderColor
+			$target.BackColor = $BackColor
+		}
+		elseif ($target -is [System.Windows.Forms.CheckBox] -or
+			$target -is [System.Windows.Forms.RadioButton] -or
+			$target -is [System.Windows.Forms.Label])
+		{
+			#$target.FlatStyle = 'Flat'
+		}
+		elseif ($target -is [System.Windows.Forms.ComboBox])
+		{
+			$target.BackColor = $BackColor
+			$target.FlatStyle = 'Flat'
+		}
+		elseif ($target -is [System.Windows.Forms.TextBox])
+		{
+			$target.BorderStyle = 'FixedSingle'
+			$target.BackColor = $BackColor
+		}
+		elseif ($target -is [System.Windows.Forms.DataGridView])
+		{
+			$target.GridColor = $BorderColor
+			$target.BackgroundColor = $ContainerColor
+			$target.DefaultCellStyle.BackColor = $WindowColor
+			$target.DefaultCellStyle.SelectionBackColor = $SelectionBackColor
+			$target.DefaultCellStyle.SelectionForeColor = $SelectionForeColor
+			$target.ColumnHeadersDefaultCellStyle.BackColor = $ContainerColor
+			$target.ColumnHeadersDefaultCellStyle.ForeColor = $ForeColor
+			$target.EnableHeadersVisualStyles = $false
+			$target.ColumnHeadersBorderStyle = 'Single'
+			$target.RowHeadersBorderStyle = 'Single'
+			$target.RowHeadersDefaultCellStyle.BackColor = $ContainerColor
+			$target.RowHeadersDefaultCellStyle.ForeColor = $ForeColor
+			
+		}
+		elseif ($PSVersionTable.PSVersion.Major -le 5 -and $target -is [System.Windows.Forms.DataGrid])
+		{
+			$target.CaptionBackColor = $WindowColor
+			$target.CaptionForeColor = $ForeColor
+			$target.BackgroundColor = $ContainerColor
+			$target.BackColor = $WindowColor
+			$target.ForeColor = $ForeColor
+			$target.HeaderBackColor = $ContainerColor
+			$target.HeaderForeColor = $ForeColor
+			$target.FlatMode = $true
+			$target.BorderStyle = 'FixedSingle'
+			$target.GridLineColor = $BorderColor
+			$target.AlternatingBackColor = $ContainerColor
+			$target.SelectionBackColor = $SelectionBackColor
+			$target.SelectionForeColor = $SelectionForeColor
+		}
+		elseif ($target -is [System.Windows.Forms.ToolStrip])
+		{
+			
+			$target.BackColor = $BackColor
+			$target.Renderer = $render
+			
+			foreach ($item in $target.Items)
+			{
+				$Queue.Enqueue($item)
+			}
+		}
+		elseif ($target -is [System.Windows.Forms.ToolStripMenuItem] -or
+			$target -is [System.Windows.Forms.ToolStripDropDown] -or
+			$target -is [System.Windows.Forms.ToolStripDropDownItem])
+		{
+			$target.BackColor = $BackColor
+			foreach ($item in $target.DropDownItems)
+			{
+				$Queue.Enqueue($item)
+			}
+		}
+		elseif ($target -is [System.Windows.Forms.ListBox] -or
+			$target -is [System.Windows.Forms.ListView] -or
+			$target -is [System.Windows.Forms.TreeView])
+		{
+			$target.BackColor = $WindowColor
+		}
+		else
+		{
+			$target.BackColor = $BackColor
+		}
+		#endregion
+		
+		if ($target -is [System.Windows.Forms.Control])
+		{
+			#Queue all the child controls
+			foreach ($child in $target.Controls)
+			{
+				$Queue.Enqueue($child)
+			}
+		}
+	}
+}
+#endregion
+
+$checkboxUsePST_CheckedChanged={
+	#TODO: Place custom script here
+	$textboxPSTFolderPath.Enabled = $checkboxUsePST.Checked
+	$labelPSTName.Enabled = $checkboxUsePST.Checked
+	$textboxFolderName.Enabled = $checkboxUsePST.Checked
+	$labelPSTFolderName.Enabled = $checkboxUsePST.Checked
+}
+
+$textboxCategory_TextChanged={
+	#TODO: Place custom script here
+	$CategoryName = $textboxCategory.Text
+}
+
+$textboxExportPath_TextChanged={
+	#TODO: Place custom script here
+	$ExportPath = $textboxExportPath.Text
+}
+
+$textboxPSTFolderPath_TextChanged={
+	#TODO: Place custom script here
+	$PSTFolderPath = $textboxPSTFolderPath.Text
+}
+
+$textboxFolderName_TextChanged={
+	#TODO: Place custom script here
+	$FolderName = $textboxFolderName.Text
+}
+
+$buttonExport_Click={
+	#TODO: Place custom script here
+	$richtextboxResults.Text = ""
+	if ($checkboxForce.Checked -eq $true)
+	{
+		$category = $textboxCategory.Text
+		$ExportPath = $textboxExportPath.Text
+		$Force = $true
+		$richtextboxResults.AppendText("Category: $category")
+		$richtextboxResults.AppendText("`n")
+		$richtextboxResults.AppendText("Export Path: $ExportPath")
+		$richtextboxResults.AppendText("`n")
+		$richtextboxResults.AppendText("Force: $Force")
+		Write-Host "Category: $category"
+		Write-Host "Export Path: $ExportPath"
+		Write-Host "Force: $Force"
+	}
+	else
+	{
+		$category = $textboxCategory.Text
+		$ExportPath = $textboxExportPath.Text
+		$Force = $false
+		$richtextboxResults.AppendText("Category: $category")
+		$richtextboxResults.AppendText("`n")
+		$richtextboxResults.AppendText("Export Path: $ExportPath")
+		$richtextboxResults.AppendText("`n")
+		$richtextboxResults.AppendText("Force: $Force")
+		Write-Host "Category: $category"
+		Write-Host "Export Path: $ExportPath"
+		Write-Host "Force: $Force"
+	}
+	if ($checkboxUsePST.Checked -eq $true)
+	{
+		$PSTFolderPath = $textboxPSTFolderPath.Text
+		$FolderName = $textboxFolderName.Text
+		$richtextboxResults.AppendText("PST Name: $PSTFolderPath")
+		$richtextboxResults.AppendText("`n")
+		$richtextboxResults.AppendText("Folder Name: $FolderName")
+		Write-Host "PST Name: $PSTFolderPath"
+		Write-Host "Folder Name: $FolderName"
+	}
+	if ($checkboxUsePST.Checked -eq $false)
+	{
+		Export-OutlookEmailsByCategory -CategoryName $category -ExportPath $ExportPath $Force
+	}
+	if ($checkboxUsePST.Checked -eq $true)
+	{
+		Export-OutlookEmailsByCategory -CategoryName $category -ExportPath $ExportPath -UsePST -PSTFolderPath $PSTFolderPath -FolderName $FolderName -Force
+	}
+}
